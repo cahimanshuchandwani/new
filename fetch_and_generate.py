@@ -125,7 +125,7 @@ def generate_pine_script(band_changes, earnings, ipos):
         ipo_cases = '        => false\n'
 
     pine_template = f"""//@version=5
-indicator("NSE Market Insights HUD (Auto-Updated)", overlay = true)
+indicator("Daily Upper & Lower Circuit Tracker", overlay = true)
 
 // --- Generated On: {now_str} ---
 
