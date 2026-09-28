@@ -125,21 +125,67 @@ def generate_pine_script(band_changes, earnings, ipos):
         ipo_cases = '        => false\n'
 
     pine_template = f"""//@version=5
-indicator("Daily Upper & Lower Circuit Tracker", overlay = true)
+indicator("Daily Upper & Lower Circuit Tracker", overlay = true, max_labels_count = 50)
 
 // --- Generated On: {now_str} ---
 
-// Lookup 1: Next-Day Circuit Band Changes
+// --- Settings: Band Change Inputs ---
+group_b1 = "Initial Circuit Band"
+band1_pct = input.float(10.0, title="Starting Band (%)", options=[2.0, 5.0, 10.0, 20.0], group=group_b1)
+
+group_b2 = "Band Change 1"
+enable_c1   = input.bool(true, title="Enable Band Change 1", group=group_b2)
+date_c1     = input.time(timestamp("01 Sep 2024 00:00 +0530"), title="Date Changed", group=group_b2)
+band2_pct   = input.float(20.0, title="New Band (%)", options=[2.0, 5.0, 10.0, 20.0], group=group_b2)
+
+group_b3 = "Band Change 2 (Optional)"
+enable_c2   = input.bool(false, title="Enable Band Change 2", group=group_b3)
+date_c2     = input.time(timestamp("01 Jan 2025 00:00 +0530"), title="Date Changed", group=group_b3)
+band3_pct   = input.float(5.0, title="New Band (%)", options=[2.0, 5.0, 10.0, 20.0], group=group_b3)
+
+// --- Active Band & Transition Tracking ---
+var float active_band = band1_pct
+prev_band = active_band[1]
+
+if enable_c2 and time >= date_c2
+    active_band := band3_pct
+else if enable_c1 and time >= date_c1
+    active_band := band2_pct
+else
+    active_band := band1_pct
+
+// --- Display "FROM % → TO %" Label ONLY on Change Date ---
+band_changed = ta.change(active_band) != 0
+
+if band_changed
+    change_text = str.tostring(prev_band, "#") + "% → " + str.tostring(active_band, "#") + "%"
+    label.new(
+         x         = bar_index, 
+         y         = high, 
+         text      = "UC CHANGE\\n" + change_text, 
+         style     = label.style_label_down, 
+         color     = color.rgb(239, 83, 80), 
+         textcolor = color.white, 
+         size      = size.normal
+     )
+
+// --- Upper & Lower Circuit Line Plot ---
+prev_close = request.security(syminfo.tickerid, "D", close[1], lookahead = barmerge.lookahead_on)
+upper_circuit = prev_close * (1 + active_band / 100.0)
+lower_circuit = prev_close * (1 - active_band / 100.0)
+
+plot(not na(prev_close) ? upper_circuit : na, title="Upper Circuit Line", color=color.rgb(239, 83, 80, 40), linewidth=1, style=plot.style_linebr)
+plot(not na(prev_close) ? lower_circuit : na, title="Lower Circuit Line", color=color.rgb(76, 175, 80, 40), linewidth=1, style=plot.style_linebr)
+
+// --- Automated Daily NSE Alert Lookups ---
 get_band_change(ticker) =>
     switch ticker
 {band_cases}
 
-// Lookup 2: Next-Day Earnings Announcements
 has_earnings_tomorrow(ticker) =>
     switch ticker
 {earnings_cases}
 
-// Lookup 3: IPOs Listed Today
 is_ipo_today(ticker) =>
     switch ticker
 {ipo_cases}
